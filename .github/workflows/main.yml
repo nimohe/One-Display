@@ -9,14 +9,11 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        uses: actions/checkout@v5
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -24,46 +21,23 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
-      - name: Archive
+      - name: Build app
         run: |
-          xcodebuild archive \
+          xcodebuild \
             -project "One Display.xcodeproj" \
             -scheme "One Display" \
             -configuration Release \
-            -archivePath "$RUNNER_TEMP/OneDisplay.xcarchive" \
-            -destination "generic/platform=macOS" \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
-      - name: Create ExportOptions.plist
+      - name: Locate .app
         run: |
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>developer-id</string>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>teamID</key>
-              <string></string>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Export Archive
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/OneDisplay.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/export"
-
-      - name: Verify .app
-        run: |
-          ls -la "$RUNNER_TEMP/export/"
-          APP_PATH=$(find "$RUNNER_TEMP/export" -name "*.app" -maxdepth 1 | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release" -name "*.app" -maxdepth 1 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app not found"
+            exit 1
+          fi
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
 
       - name: Create DMG
